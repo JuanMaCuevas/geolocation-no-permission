@@ -4,7 +4,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.List;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -21,7 +23,11 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
@@ -34,6 +40,7 @@ public class MainActivity extends Activity {
 	private WebView webView;
 
 	boolean wifiEnabled = false;
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -42,19 +49,46 @@ public class MainActivity extends Activity {
 		webView.setWebViewClient(new WebViewClient());
 		wifi = (WifiManager) getSystemService(Context.WIFI_SERVICE);
 		wifiEnabled = wifi.isWifiEnabled();
-		if (wifiEnabled == false) {
-			
-			Toast.makeText(this, "Enabling wifi...", Toast.LENGTH_LONG).show();
-			wifi.setWifiEnabled(true);
-		}
+		// if (wifiEnabled == false) {
 
-		registerReceiver(br, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+		// Toast.makeText(this, "Enabling wifi...", Toast.LENGTH_LONG).show();
+		// wifi.setWifiEnabled(true);
+		// }
+	}
+
+	@Override
+	protected void onPause() {
+		super.onPause();
+		unregisterReceiver(br);
+	}
+
+	@Override
+	protected void onResume() {
+		super.onResume();
+
+		registerReceiver(br, new IntentFilter(
+				WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
 
 		wifi.startScan();
 		Toast.makeText(this, "Scanning...." + size, Toast.LENGTH_LONG).show();
 	}
-	
-	
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		MenuInflater inflater = getMenuInflater();
+		inflater.inflate(R.menu.main, menu);
+		return super.onCreateOptionsMenu(menu);
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		if (item.getItemId() == R.id.refresh) {
+			wifi.startScan();
+			return true;
+		}
+		return super.onOptionsItemSelected(item);
+	}
+
 	BroadcastReceiver br = new BroadcastReceiver() {
 
 		@Override
@@ -63,29 +97,23 @@ public class MainActivity extends Activity {
 			size = results.size();
 			if (size > 0) {
 				new LocationDownloader().execute();
-//				getPosition();
+				// getPosition();
 			}
 		}
 
 	};
-	
-	
-	public class LocationDownloader extends AsyncTask<Void, Void, String>{
+
+	public class LocationDownloader extends AsyncTask<Void, Void, Void> {
 
 		@Override
-		protected void onPostExecute(String result) {
-			super.onPostExecute(result);
-//			showMap(result);
-		}
-
-		@Override
-		protected String doInBackground(Void... params) {
+		protected Void doInBackground(Void... params) {
 			String str = getPosition();
-			showMap(str);
-			unregisterReceiver(br);
-			return "";
+			if (!TextUtils.isEmpty(str)) {
+				showMap(str);
+			}
+			return null;
 		}
-		
+
 	}
 
 	private String getPosition() {
@@ -95,7 +123,7 @@ public class MainActivity extends Activity {
 			return "";
 		}
 		String api = "https://maps.googleapis.com/maps/api/browserlocation/json?browser=firefox&sensor=true";
-		api=api+apns;
+		api = api + apns;
 		Log.i("LOCATION", api);
 		HttpsURLConnection urlConnection = null;
 		JSONObject json = null;
@@ -110,26 +138,28 @@ public class MainActivity extends Activity {
 		} finally {
 			urlConnection.disconnect();
 		}
+		if (json == null) {
+			return null;
+		}
 
 		json = json.optJSONObject("location");
 		String lat, lng;
 		lat = json.optString("lat");
 		lng = json.optString("lng");
-return lat+","+lng;
-		
+		return lat + "," + lng;
 
 	}
 
 	private void showMap(final String latlng) {
 		runOnUiThread(new Runnable() {
-			
+
 			@Override
 			public void run() {
 				webView.loadUrl("http://maps.google.com/maps?q=" + latlng);
-				
+
 			}
 		});
-		
+
 	}
 
 	private String readStream(InputStream in) {
@@ -152,13 +182,18 @@ return lat+","+lng;
 			return "";
 
 		StringBuilder str = new StringBuilder();
+		try {
 		for (ScanResult r : results) {
 			str.append("&wifi=mac:");
 			str.append(r.BSSID);
 			str.append("|ssid:");
-			str.append(r.SSID);
+				str.append(URLEncoder.encode(r.SSID,"UTF-8"));
 			str.append("|ss:");
 			str.append(r.level);
+		}
+		} catch (UnsupportedEncodingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 
 		return str.toString();

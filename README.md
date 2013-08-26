@@ -6,6 +6,7 @@ This Android app finds out the geolocation of the user using only the wireless n
 Permissions required:
 ```
   <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
   <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 ```
 Not required:
